@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tartaruga Guardiã: Aventura no Mar</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: linear-gradient(#0099cc, #003366);
+    font-family: "Comic Sans MS", sans-serif;
+  }
+  canvas {
+    display: block;
+    margin: auto;
+    background: linear-gradient(#00aaff, #003366);
+  }
+  #restartBtn {
+    position: absolute;
+    left: 50%;
+    bottom: 30px;
+    transform: translateX(-50%);
+    padding: 10px 25px;
+    font-size: 20px;
+    background-color: #2ee0a7;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    display: none;
+    box-shadow: 0 4px #1c8a67;
+    color: #fff;
+    font-weight: bold;
+  }
+  #restartBtn:hover {
+    background-color: #26c18f;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="900" height="500"></canvas>
+<button id="restartBtn">🔄 Reiniciar</button>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const restartBtn = document.getElementById("restartBtn");
+
+let gameOver = false;
+let score = 0;
+let life = 3;
+
+const turtle = {
+  x: 150,
+  y: 300,
+  size: 40,
+  vy: 0,
+  gravity: 0.5,
+  jump: -8,
+  bodyColor: "#7FFFD4",
+  shellColor: "#8B4513",
+  shellLines: "#A0522D",
+  eyeWhite: "white",
+  eyeBlack: "black"
+};
+
+let algae = [];
+let trash = [];
+let bubbles = [];
+
+function createBubbles() {
+  for (let i = 0; i < 25; i++) {
+    bubbles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 3 + 1,
+      speed: Math.random() * 0.6 + 0.3
+    });
+  }
+}
+
+function drawBubbles() {
+  ctx.fillStyle = "rgba(255,255,255,0.3)";
+  bubbles.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fill();
+    b.y -= b.speed;
+    if (b.y < -5) b.y = canvas.height + 5;
+  });
+}
+
+function drawBackground() {
+  ctx.fillStyle = "#004477";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Fundo com bolhas e corais
+  drawBubbles();
+  ctx.fillStyle = "#d9b98c";
+  ctx.fillRect(0, canvas.height - 60, canvas.width, 60);
+
+  // Corais simples
+  ctx.fillStyle = "#ff6699";
+  ctx.beginPath();
+  ctx.arc(120, canvas.height - 70, 40, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(800, canvas.height - 80, 30, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// 🐢 Tartaruga detalhada estilo cartoon
+function drawTurtle() {
+  const { x, y } = turtle;
+
+  // Nadadeiras
+  ctx.fillStyle = turtle.bodyColor;
+  ctx.beginPath();
+  ctx.ellipse(x - 25, y + 20, 15, 10, Math.PI / 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(x + 25, y + 20, 15, 10, -Math.PI / 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Corpo
+  ctx.beginPath();
+  ctx.ellipse(x, y, 35, 25, 0, 0, Math.PI * 2);
+  ctx.fillStyle = turtle.bodyColor;
+  ctx.fill();
+
+  // Casco
+  ctx.beginPath();
+  ctx.ellipse(x, y, 28, 20, 0, 0, Math.PI * 2);
+  ctx.fillStyle = turtle.shellColor;
+  ctx.fill();
+
+  // Divisões do casco
+  ctx.strokeStyle = turtle.shellLines;
+  ctx.lineWidth = 2;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + i * 7, y - 18);
+    ctx.lineTo(x + i * 7, y + 18);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.arc(x, y, 10, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Cabeça
+  ctx.beginPath();
+  ctx.arc(x + 40, y - 3, 14, 0, Math.PI * 2);
+  ctx.fillStyle = turtle.bodyColor;
+  ctx.fill();
+
+  // Olhos
+  ctx.beginPath();
+  ctx.arc(x + 44, y - 6, 5, 0, Math.PI * 2);
+  ctx.fillStyle = turtle.eyeWhite;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 44, y - 6, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = turtle.eyeBlack;
+  ctx.fill();
+
+  // Boca (sorriso)
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(x + 42, y + 2, 6, 0, Math.PI / 4);
+  ctx.stroke();
+}
+
+function createAlgae() {
+  if (Math.random() < 0.03) {
+    algae.push({
+      x: canvas.width,
+      y: canvas.height - 60,
+      h: 60 + Math.random() * 40,
+      sway: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function drawAlgae() {
+  ctx.strokeStyle = "#1aff1a";
+  ctx.lineWidth = 5;
+  algae.forEach((a, i) => {
+    ctx.beginPath();
+    ctx.moveTo(a.x, canvas.height - 60);
+    ctx.quadraticCurveTo(a.x + Math.sin(a.sway) * 10, canvas.height - a.h, a.x, canvas.height - a.h);
+    ctx.stroke();
+    a.x -= 3;
+    a.sway += 0.1;
+    if (a.x < -10) algae.splice(i, 1);
+
+    // Colisão (ganha ponto e vida)
+    if (
+      turtle.x + 30 > a.x - 10 &&
+      turtle.x - 30 < a.x + 10 &&
+      turtle.y > canvas.height - a.h - 40
+    ) {
+      score += 10;
+      if (life < 3) life++;
+      algae.splice(i, 1);
+    }
+  });
+}
+
+function createTrash() {
+  if (Math.random() < 0.02) {
+    const type = Math.random() < 0.5 ? "garrafa" : "sacola";
+    trash.push({
+      x: canvas.width,
+      y: canvas.height - 80 - Math.random() * 200,
+      type
+    });
+  }
+}
+
+function drawTrash() {
+  trash.forEach((t, i) => {
+    if (t.type === "garrafa") {
+      ctx.fillStyle = "#b3e0ff";
+      ctx.fillRect(t.x, t.y, 15, 40);
+      ctx.fillRect(t.x + 3, t.y - 6, 10, 6);
+    } else {
+      ctx.fillStyle = "rgba(255,255,255,0.6)";
+      ctx.beginPath();
+      ctx.moveTo(t.x, t.y);
+      ctx.quadraticCurveTo(t.x + 20, t.y + 10, t.x, t.y + 30);
+      ctx.lineTo(t.x + 25, t.y + 25);
+      ctx.lineTo(t.x + 20, t.y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    t.x -= 5;
+
+    // Colisão (perde vida)
+    if (
+      turtle.x + 30 > t.x &&
+      turtle.x - 30 < t.x + 25 &&
+      turtle.y + 25 > t.y &&
+      turtle.y - 25 < t.y + 40
+    ) {
+      life--;
+      trash.splice(i, 1);
+      if (life <= 0) gameOver = true;
+    }
+
+    if (t.x < -30) trash.splice(i, 1);
+  });
+}
+
+function drawHUD() {
+  ctx.fillStyle = "white";
+  ctx.font = "20px Comic Sans MS";
+  ctx.fillText(`🌿 Pontos: ${score}`, 20, 30);
+  ctx.fillText(`❤️ Vida: ${life}`, 20, 60);
+}
+
+function update() {
+  if (!gameOver) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBackground();
+    drawTurtle();
+
+    turtle.vy += turtle.gravity;
+    turtle.y += turtle.vy;
+    if (turtle.y > canvas.height - 80) {
+      turtle.y = canvas.height - 80;
+      turtle.vy = 0;
+    }
+
+    createAlgae();
+    createTrash();
+    drawAlgae();
+    drawTrash();
+    drawHUD();
+
+    score++;
+    requestAnimationFrame(update);
+  } else {
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "white";
+    ctx.font = "40px Comic Sans MS";
+    ctx.fillText("💀 Game Over 💀", canvas.width / 2 - 150, canvas.height / 2);
+    restartBtn.style.display = "block";
+  }
+}
+
+function jump() {
+  if (!gameOver && turtle.y > 50) turtle.vy = turtle.jump;
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space" || e.code === "ArrowUp") jump();
+});
+canvas.addEventListener("click", jump);
+
+restartBtn.addEventListener("click", () => {
+  restartBtn.style.display = "none";
+  gameOver = false;
+  score = 0;
+  life = 3;
+  turtle.y = 300;
+  turtle.vy = 0;
+  algae = [];
+  trash = [];
+  update();
+});
+
+createBubbles();
+update();
+</script>
+</body>
+</html>
